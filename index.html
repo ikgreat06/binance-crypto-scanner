@@ -1,0 +1,891 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Binance USDT Crypto Scanner</title>
+  <style>
+    :root {
+      --bg: #151515;
+      --bg-2: #1b1b1d;
+      --panel: #1d1d1f;
+      --panel-alt: #17171a;
+      --line: #2d2d32;
+      --text: #e8edf5;
+      --muted: #94a2b5;
+      --soft: #6f7f93;
+      --green: #42d392;
+      --yellow: #f6c85f;
+      --blue: #5da9ff;
+      --red: #ff6d6d;
+      --ready: #5fd1a3;
+      --scanning: #f0b84b;
+      --complete: #6ca8ff;
+      --error: #ff7d7d;
+      --header-h: 28px;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      overflow: hidden;
+    }
+
+    body {
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+      padding: 8px;
+      gap: 8px;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      min-height: 32px;
+      padding: 4px 8px;
+      background: var(--bg-2);
+      border: 1px solid var(--line);
+      font-size: 12px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    .status-wrap {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+    }
+
+    .status-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      display: inline-block;
+      background: var(--ready);
+      box-shadow: 0 0 6px currentColor;
+    }
+
+    .status-ready .status-dot { background: var(--ready); color: var(--ready); }
+    .status-scanning .status-dot { background: var(--scanning); color: var(--scanning); }
+    .status-complete .status-dot { background: var(--complete); color: var(--complete); }
+    .status-error .status-dot { background: var(--error); color: var(--error); }
+
+    .status-text {
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .status-wrap.status-ready .status-text { color: var(--ready); }
+    .status-wrap.status-scanning .status-text { color: var(--scanning); }
+    .status-wrap.status-complete .status-text { color: var(--complete); }
+    .status-wrap.status-error .status-text { color: var(--error); }
+
+    .status-meta {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      color: var(--muted);
+      font-weight: 600;
+      font-size: 11px;
+      letter-spacing: 0.05em;
+    }
+
+    .controls {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+
+    button {
+      appearance: none;
+      border: 1px solid var(--line);
+      background: var(--panel);
+      color: var(--text);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      padding: 6px 12px;
+      cursor: pointer;
+      min-width: 72px;
+      transition: border-color 0.15s ease, background 0.15s ease;
+    }
+
+    button:hover {
+      border-color: #3c3d45;
+      background: #1f2127;
+    }
+
+    button:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+
+    .scan-button {
+      background: rgba(95, 176, 255, 0.08);
+      border-color: rgba(95, 176, 255, 0.25);
+    }
+
+    .stop-button {
+      background: rgba(255, 125, 125, 0.06);
+      border-color: rgba(255, 125, 125, 0.25);
+    }
+
+    .panels {
+      flex: 1;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-template-rows: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      min-height: 0;
+    }
+
+    .panel {
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      overflow: hidden;
+    }
+
+    .panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      min-height: var(--header-h);
+      padding: 4px 8px;
+      border-bottom: 1px solid var(--line);
+      font-size: 11px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      font-weight: 700;
+      background: rgba(255,255,255,0.02);
+    }
+
+    .panel-header .timeframe {
+      color: var(--text);
+    }
+
+    .panel-header .match-count {
+      color: var(--muted);
+      font-weight: 600;
+    }
+
+    .result-wrap {
+      flex: 1;
+      overflow: auto;
+      min-height: 0;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+      font-size: 11px;
+      font-family: "Consolas", "SFMono-Regular", monospace;
+    }
+
+    thead th {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      background: #1b1c20;
+      color: var(--soft);
+      text-align: left;
+      padding: 5px 6px;
+      border-bottom: 1px solid var(--line);
+      font-size: 10px;
+      letter-spacing: 0.09em;
+      text-transform: uppercase;
+      font-weight: 700;
+    }
+
+    tbody td {
+      padding: 4px 6px;
+      border-bottom: 1px solid rgba(255,255,255,0.02);
+      color: var(--text);
+      vertical-align: middle;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    tbody tr:hover {
+      background: rgba(255,255,255,0.02);
+    }
+
+    .symbol-col { width: 26%; }
+    .price-col { width: 22%; }
+    .k-col { width: 18%; }
+    .ema-col { width: 34%; }
+
+    .rising { color: var(--green); }
+    .falling { color: var(--red); }
+
+    .ema-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      margin-right: 6px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .ema-badge .bullet {
+      font-size: 12px;
+      transform: translateY(-1px);
+    }
+
+    .yellow { color: var(--yellow); }
+    .green { color: var(--green); }
+    .blue { color: var(--blue); }
+
+    .empty {
+      color: var(--muted);
+      font-style: italic;
+      padding: 10px 8px;
+      font-size: 11px;
+    }
+
+    @media (max-width: 1100px) {
+      body {
+        overflow: auto;
+      }
+
+      .panels {
+        grid-template-columns: 1fr;
+        grid-template-rows: repeat(4, minmax(220px, 1fr));
+      }
+
+      .topbar {
+        flex-wrap: wrap;
+        justify-content: center;
+      }
+
+      .status-meta {
+        order: 3;
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <div id="statusWrap" class="status-wrap status-ready">
+      <span class="status-dot"></span>
+      <span id="statusText" class="status-text">READY</span>
+    </div>
+    <div id="statusMeta" class="status-meta">0 / 0 scanned | Matches: 0 | Last: —</div>
+    <div class="controls">
+      <button id="scanBtn" class="scan-button">SCAN</button>
+      <button id="stopBtn" class="stop-button">STOP</button>
+    </div>
+  </div>
+
+  <div id="panels" class="panels"></div>
+
+  <script>
+    const CONFIG = {
+      marketType: 'perpetual',
+      stochRsiThreshold: 20,
+      emaDistancePercent: 3,
+      emaLengths: [50, 100, 200],
+      rsiLength: 14,
+      stochLength: 14,
+      kSmoothing: 3,
+      dSmoothing: 3,
+      timeframes: ['4H', '8H', '12H', '1D']
+    };
+
+    const state = {
+      scanActive: false,
+      stopRequested: false,
+      totalSymbols: 0,
+      processedCount: 0,
+      currentSymbol: '—',
+      lastSymbol: '—',
+      errors: 0,
+      resultsByTimeframe: {
+        '4H': [],
+        '8H': [],
+        '12H': [],
+        '1D': []
+      },
+      symbols: [],
+      panels: {}
+    };
+
+    const MARKET_LABEL = CONFIG.marketType === 'perpetual' ? 'Binance USDT Perpetual Futures' : 'Binance USDT Spot';
+
+    function delay(ms) {
+      return new Promise((resolve) => setTimeout(resolve, ms));
+    }
+
+    function getApiBase() {
+      return CONFIG.marketType === 'perpetual'
+        ? 'https://fapi.binance.com/fapi/v1'
+        : 'https://api.binance.com/api/v3';
+    }
+
+    function getMarketLabel() {
+      return MARKET_LABEL;
+    }
+
+    function formatPrice(value) {
+      if (!Number.isFinite(value)) return '—';
+      const abs = Math.abs(value);
+      if (abs >= 10000) return value.toLocaleString(undefined, { maximumFractionDigits: 2 });
+      if (abs >= 100) return value.toLocaleString(undefined, { maximumFractionDigits: 2 });
+      if (abs >= 1) return value.toLocaleString(undefined, { maximumFractionDigits: 3 });
+      if (abs >= 0.01) return value.toLocaleString(undefined, { maximumFractionDigits: 5 });
+      return value.toLocaleString(undefined, { maximumFractionDigits: 6 });
+    }
+
+    function formatSignedPercent(value) {
+      const sign = value >= 0 ? '+' : '-';
+      return `${sign}${Math.abs(value).toFixed(2)}%`;
+    }
+
+    function formatK(value) {
+      if (!Number.isFinite(value)) return '—';
+      return value.toFixed(2);
+    }
+
+    function safeNumber(value) {
+      const num = Number(value);
+      return Number.isFinite(num) ? num : 0;
+    }
+
+    function buildPanelMarkup(timeframe) {
+      return `
+        <div class="panel" data-timeframe="${timeframe}">
+          <div class="panel-header">
+            <span class="timeframe">${timeframe}</span>
+            <span class="match-count">MATCHES: 0</span>
+          </div>
+          <div class="result-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th class="symbol-col">COIN</th>
+                  <th class="price-col">PRICE</th>
+                  <th class="k-col">K</th>
+                  <th class="ema-col">EMA</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      `;
+    }
+
+    function setupPanels() {
+      const panelsEl = document.getElementById('panels');
+      panelsEl.innerHTML = CONFIG.timeframes.map(buildPanelMarkup).join('');
+      CONFIG.timeframes.forEach((tf) => {
+        state.panels[tf] = {
+          root: panelsEl.querySelector(`[data-timeframe="${tf}"]`),
+          tbody: panelsEl.querySelector(`[data-timeframe="${tf}"] tbody`),
+          headerMatch: panelsEl.querySelector(`[data-timeframe="${tf}"] .match-count`)
+        };
+      });
+    }
+
+    function updateStatus() {
+      const statusWrap = document.getElementById('statusWrap');
+      const statusText = document.getElementById('statusText');
+      const statusMeta = document.getElementById('statusMeta');
+      const totalMatches = CONFIG.timeframes.reduce((sum, tf) => sum + state.resultsByTimeframe[tf].length, 0);
+
+      let mode = 'ready';
+      if (state.scanActive) {
+        mode = 'scanning';
+      } else if (state.processedCount > 0 && state.totalSymbols > 0 && state.processedCount >= state.totalSymbols) {
+        mode = 'complete';
+      } else if (state.errors > 0 && state.processedCount > 0 && state.processedCount >= state.totalSymbols) {
+        mode = 'error';
+      }
+
+      statusWrap.className = `status-wrap status-${mode}`;
+
+      if (mode === 'ready') {
+        statusText.textContent = 'READY';
+      } else if (mode === 'scanning') {
+        statusText.textContent = 'SCANNING';
+      } else if (mode === 'complete') {
+        statusText.textContent = 'COMPLETE';
+      } else {
+        statusText.textContent = 'ERROR';
+      }
+
+      const baseText = `${state.processedCount} / ${state.totalSymbols || 0} scanned | Matches: ${totalMatches} | Last: ${state.lastSymbol}`;
+      statusMeta.textContent = baseText;
+    }
+
+    function renderPanel(timeframe) {
+      const panelState = state.resultsByTimeframe[timeframe];
+      const panel = state.panels[timeframe];
+      if (!panel) return;
+
+      const sorted = [...panelState].sort((a, b) => {
+        const diff = a.minDistanceAbs - b.minDistanceAbs;
+        if (Math.abs(diff) > 0.000001) return diff;
+        if (a.k !== b.k) return a.k - b.k;
+        return a.symbol.localeCompare(b.symbol);
+      });
+
+      panel.headerMatch.textContent = `MATCHES: ${sorted.length}`;
+      panel.tbody.innerHTML = '';
+
+      if (!sorted.length) {
+        const emptyRow = document.createElement('tr');
+        emptyRow.innerHTML = `<td colspan="4" class="empty">waiting for matches…</td>`;
+        panel.tbody.appendChild(emptyRow);
+        return;
+      }
+
+      const fragment = document.createDocumentFragment();
+      sorted.forEach((row) => {
+        const tr = document.createElement('tr');
+        const emaHtml = row.emaMatches
+          .map((ema) => {
+            const baseClass = ema.length === 50 ? 'yellow' : ema.length === 100 ? 'green' : 'blue';
+            const directionClass = ema.distance >= 0 ? 'rising' : 'falling';
+            return `<span class="ema-badge ${baseClass}"><span class="bullet">●</span><span class="${directionClass}">${ema.length} ${formatSignedPercent(ema.distance)}</span></span>`;
+          })
+          .join(' ');
+
+        tr.innerHTML = `
+          <td>${row.symbol}</td>
+          <td>${formatPrice(row.price)}</td>
+          <td>${formatK(row.k)}</td>
+          <td>${emaHtml}</td>
+        `;
+        fragment.appendChild(tr);
+      });
+      panel.tbody.appendChild(fragment);
+    }
+
+    function renderAllPanels() {
+      CONFIG.timeframes.forEach((tf) => renderPanel(tf));
+      updateStatus();
+    }
+
+    function clearResults() {
+      CONFIG.timeframes.forEach((tf) => {
+        state.resultsByTimeframe[tf] = [];
+      });
+      renderAllPanels();
+    }
+
+    async function requestJson(url, retries = 4) {
+      let attempt = 0;
+      while (attempt < retries) {
+        try {
+          const response = await fetch(url, { cache: 'no-store' });
+          if (response.status === 429) {
+            await delay(1000 * (attempt + 1));
+            attempt += 1;
+            continue;
+          }
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+          }
+          return await response.json();
+        } catch (error) {
+          if (attempt >= retries - 1) {
+            throw error;
+          }
+          attempt += 1;
+          await delay(250 * (attempt + 1));
+        }
+      }
+      throw new Error('Request failed');
+    }
+
+    function getExchangeInfoUrl() {
+      const base = getApiBase();
+      return `${base}/exchangeInfo`;
+    }
+
+    async function getExchangeInfo() {
+      const url = getExchangeInfoUrl();
+      return await requestJson(url);
+    }
+
+    function getTradableSymbols(exchangeInfo) {
+      if (!exchangeInfo || !Array.isArray(exchangeInfo.symbols)) {
+        return [];
+      }
+
+      const valid = [];
+      const seen = new Set();
+
+      exchangeInfo.symbols.forEach((item) => {
+        const symbol = item.symbol || '';
+        if (!symbol || item.status !== 'TRADING') return;
+        if (!symbol.endsWith('USDT')) return;
+        if (symbol.includes('UP') || symbol.includes('DOWN') || symbol.includes('BULL') || symbol.includes('BEAR')) return;
+        if (symbol.includes('TUSD') || symbol.includes('BUSD')) return;
+        if (seen.has(symbol)) return;
+
+        seen.add(symbol);
+        valid.push(symbol);
+      });
+
+      valid.sort();
+      return valid;
+    }
+
+    async function fetchKlines(symbol, interval, limit) {
+      const url = `${getApiBase()}/klines?symbol=${encodeURIComponent(symbol)}&interval=${encodeURIComponent(interval)}&limit=${limit}`;
+      const raw = await requestJson(url);
+      if (!Array.isArray(raw) || !raw.length) {
+        return [];
+      }
+      const sorted = raw.slice(0, raw.length - 1);
+      return sorted.map(([openTime, open, high, low, close, volume]) => ({
+        openTime: Number(openTime),
+        open: Number(open),
+        high: Number(high),
+        low: Number(low),
+        close: Number(close),
+        volume: Number(volume)
+      }));
+    }
+
+    function aggregateCandles(candles, groupSize) {
+      if (!Array.isArray(candles) || candles.length === 0 || groupSize <= 0) return [];
+      const aggregated = [];
+
+      for (let i = 0; i + groupSize <= candles.length; i += groupSize) {
+        const chunk = candles.slice(i, i + groupSize);
+        const first = chunk[0];
+        const last = chunk[chunk.length - 1];
+        aggregated.push({
+          openTime: first.openTime,
+          open: first.open,
+          high: Math.max(...chunk.map((c) => c.high)),
+          low: Math.min(...chunk.map((c) => c.low)),
+          close: last.close,
+          volume: chunk.reduce((sum, c) => sum + c.volume, 0)
+        });
+      }
+
+      return aggregated;
+    }
+
+    function calculateEMA(closes, length) {
+      if (!Array.isArray(closes) || closes.length === 0) return null;
+      if (length <= 0) return null;
+      const multiplier = 2 / (length + 1);
+      let ema = closes[0];
+      for (let i = 1; i < closes.length; i += 1) {
+        ema = closes[i] * multiplier + ema * (1 - multiplier);
+      }
+      return ema;
+    }
+
+    function calculateRSI(closes, length = 14) {
+      if (!Array.isArray(closes) || closes.length <= length) return new Array(closes.length).fill(null);
+      const result = new Array(closes.length).fill(null);
+      let gains = 0;
+      let losses = 0;
+
+      for (let i = 1; i <= length; i += 1) {
+        const delta = closes[i] - closes[i - 1];
+        if (delta >= 0) gains += delta; else losses += Math.abs(delta);
+      }
+
+      let averageGain = gains / length;
+      let averageLoss = losses / length;
+      let rsi = 50;
+
+      result[length] = 100 - (100 / (1 + (averageGain / (averageLoss || 1))));
+
+      for (let i = length + 1; i < closes.length; i += 1) {
+        const delta = closes[i] - closes[i - 1];
+        const gain = delta > 0 ? delta : 0;
+        const loss = delta < 0 ? Math.abs(delta) : 0;
+        averageGain = (averageGain * (length - 1) + gain) / length;
+        averageLoss = (averageLoss * (length - 1) + loss) / length;
+        if (averageLoss === 0) {
+          rsi = 100;
+        } else {
+          const rs = averageGain / averageLoss;
+          rsi = 100 - (100 / (1 + rs));
+        }
+        result[i] = rsi;
+      }
+
+      for (let i = 0; i < length; i += 1) {
+        result[i] = null;
+      }
+
+      return result.filter((value) => value !== null);
+    }
+
+    function calculateStochRSI(rsiSeries, stochLength = 14, kSmoothing = 3, dSmoothing = 3) {
+      if (!Array.isArray(rsiSeries) || rsiSeries.length < stochLength) {
+        return { k: null, d: null };
+      }
+
+      const values = [];
+      for (let i = stochLength - 1; i < rsiSeries.length; i += 1) {
+        const window = rsiSeries.slice(i - stochLength + 1, i + 1);
+        const lowest = Math.min(...window);
+        const highest = Math.max(...window);
+        const currentRsi = window[window.length - 1];
+        if (highest === lowest) {
+          values.push(0);
+        } else {
+          values.push(((currentRsi - lowest) / (highest - lowest)) * 100);
+        }
+      }
+
+      if (values.length < kSmoothing) {
+        return { k: null, d: null };
+      }
+
+      const kValues = [];
+      for (let i = 0; i <= values.length - kSmoothing; i += 1) {
+        const slice = values.slice(i, i + kSmoothing);
+        kValues.push(slice.reduce((sum, value) => sum + value, 0) / slice.length);
+      }
+
+      if (kValues.length < dSmoothing) {
+        return { k: kValues[kValues.length - 1] ?? null, d: null };
+      }
+
+      const dValues = [];
+      for (let i = 0; i <= kValues.length - dSmoothing; i += 1) {
+        const slice = kValues.slice(i, i + dSmoothing);
+        dValues.push(slice.reduce((sum, value) => sum + value, 0) / slice.length);
+      }
+
+      return {
+        k: kValues[kValues.length - 1] ?? null,
+        d: dValues[dValues.length - 1] ?? null
+      };
+    }
+
+    function scanTimeframe(symbol, candles, timeframe) {
+      if (!Array.isArray(candles) || candles.length < 100) {
+        return null;
+      }
+
+      const closes = candles.map((candle) => candle.close);
+      const latestPrice = closes[closes.length - 1];
+      const emaMap = {};
+
+      CONFIG.emaLengths.forEach((length) => {
+        emaMap[length] = calculateEMA(closes, length);
+      });
+
+      const rsiSeries = calculateRSI(closes, CONFIG.rsiLength);
+      const stoch = calculateStochRSI(rsiSeries, CONFIG.stochLength, CONFIG.kSmoothing, CONFIG.dSmoothing);
+
+      if (!Number.isFinite(stoch.k) || stoch.k >= CONFIG.stochRsiThreshold) {
+        return null;
+      }
+
+      const qualified = [];
+      CONFIG.emaLengths.forEach((length) => {
+        const emaValue = emaMap[length];
+        if (!Number.isFinite(emaValue) || emaValue <= 0) return;
+        const distance = ((latestPrice - emaValue) / emaValue) * 100;
+        if (distance >= -CONFIG.emaDistancePercent && distance <= CONFIG.emaDistancePercent) {
+          qualified.push({
+            length,
+            distance,
+            color: length === 50 ? 'yellow' : length === 100 ? 'green' : 'blue'
+          });
+        }
+      });
+
+      if (!qualified.length) {
+        return null;
+      }
+
+      qualified.sort((a, b) => Math.abs(a.distance) - Math.abs(b.distance));
+      const minDistance = Math.min(...qualified.map((item) => Math.abs(item.distance)));
+
+      return {
+        symbol,
+        timeframe,
+        price: latestPrice,
+        k: stoch.k,
+        minDistanceAbs: minDistance,
+        emaMatches: qualified
+      };
+    }
+
+    function addMatchesForTimeframe(timeframe, matches) {
+      if (!matches) return;
+      const list = state.resultsByTimeframe[timeframe];
+      const existing = new Set(list.map((item) => item.symbol));
+      if (existing.has(matches.symbol)) return;
+      list.push({
+        symbol: matches.symbol,
+        price: matches.price,
+        k: matches.k,
+        minDistanceAbs: matches.minDistanceAbs,
+        emaMatches: matches.emaMatches
+      });
+      renderPanel(timeframe);
+      updateStatus();
+    }
+
+    async function scanSymbol(symbol) {
+      const base4h = await fetchKlines(symbol, '4h', 500);
+      const clean4h = base4h.filter((candle) => Number.isFinite(candle.close));
+      const daily = await fetchKlines(symbol, '1d', 500);
+      const cleanDaily = daily.filter((candle) => Number.isFinite(candle.close));
+
+      const tfResults = {};
+
+      tfResults['4H'] = scanTimeframe(symbol, clean4h, '4H');
+      const aggregated8h = aggregateCandles(clean4h, 2);
+      tfResults['8H'] = scanTimeframe(symbol, aggregated8h, '8H');
+      const aggregated12h = aggregateCandles(clean4h, 3);
+      tfResults['12H'] = scanTimeframe(symbol, aggregated12h, '12H');
+      tfResults['1D'] = scanTimeframe(symbol, cleanDaily, '1D');
+
+      CONFIG.timeframes.forEach((tf) => {
+        const result = tfResults[tf];
+        if (result) {
+          addMatchesForTimeframe(tf, result);
+        }
+      });
+    }
+
+    async function processScanQueue() {
+      if (state.scanActive) return;
+      state.scanActive = true;
+      state.stopRequested = false;
+      state.errors = 0;
+      state.processedCount = 0;
+      state.lastSymbol = '—';
+      clearResults();
+      updateStatus();
+
+      const total = state.symbols.length;
+      state.totalSymbols = total;
+
+      for (let index = 0; index < state.symbols.length; index += 1) {
+        if (state.stopRequested) {
+          break;
+        }
+
+        const symbol = state.symbols[index];
+        state.currentSymbol = symbol;
+        state.lastSymbol = symbol;
+        state.processedCount = index + 1;
+        updateStatus();
+
+        try {
+          await scanSymbol(symbol);
+        } catch (error) {
+          state.errors += 1;
+        }
+
+        state.currentSymbol = '—';
+        state.lastSymbol = symbol;
+        updateStatus();
+        await delay(30);
+      }
+
+      state.scanActive = false;
+      state.stopRequested = false;
+      state.currentSymbol = '—';
+      if (state.processedCount >= state.totalSymbols) {
+        state.lastSymbol = '—';
+      }
+      updateStatus();
+    }
+
+    async function startScanner() {
+      if (state.scanActive) return;
+
+      const exchangeInfo = await getExchangeInfo();
+      const symbols = getTradableSymbols(exchangeInfo);
+
+      if (!symbols.length) {
+        state.totalSymbols = 0;
+        state.processedCount = 0;
+        state.lastSymbol = '—';
+        updateStatus();
+        return;
+      }
+
+      state.symbols = symbols;
+      await processScanQueue();
+    }
+
+    function stopScanner() {
+      state.stopRequested = true;
+      state.scanActive = false;
+      updateStatus();
+    }
+
+    document.getElementById('scanBtn').addEventListener('click', async () => {
+      document.getElementById('scanBtn').disabled = true;
+      document.getElementById('stopBtn').disabled = false;
+      try {
+        await startScanner();
+      } catch (error) {
+        state.scanActive = false;
+        state.errors += 1;
+        updateStatus();
+      } finally {
+        document.getElementById('scanBtn').disabled = false;
+      }
+    });
+
+    document.getElementById('stopBtn').addEventListener('click', () => {
+      stopScanner();
+      document.getElementById('stopBtn').disabled = true;
+    });
+
+    function init() {
+      setupPanels();
+      clearResults();
+      document.getElementById('stopBtn').disabled = true;
+      const marketNote = document.createElement('div');
+      marketNote.style.position = 'fixed';
+      marketNote.style.right = '8px';
+      marketNote.style.bottom = '8px';
+      marketNote.style.fontSize = '9px';
+      marketNote.style.color = 'var(--muted)';
+      marketNote.style.letterSpacing = '0.08em';
+      marketNote.style.textTransform = 'uppercase';
+      marketNote.style.padding = '4px 8px';
+      marketNote.style.border = '1px solid var(--line)';
+      marketNote.style.background = 'rgba(0,0,0,0.2)';
+      marketNote.textContent = `Market: ${getMarketLabel()} • CORS note: use public Binance endpoints; a local proxy is required if browser access is blocked.`;
+      document.body.appendChild(marketNote);
+      updateStatus();
+    }
+
+    init();
+  </script>
+</body>
+</html>
